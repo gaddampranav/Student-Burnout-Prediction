@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 st.set_page_config(page_title="Student Burnout Prediction Dashboard", layout="wide")
 
@@ -11,10 +10,29 @@ st.set_page_config(page_title="Student Burnout Prediction Dashboard", layout="wi
 # =========================
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data/synthetic_student_data.csv")
-    return df
+    return pd.read_csv("data/synthetic_student_data.csv")
 
 df = load_data()
+
+# =========================
+# Auto Fix Missing Columns
+# =========================
+
+# Create risk_category if missing
+if "risk_category" not in df.columns and "risk_score" in df.columns:
+    df["risk_category"] = pd.cut(
+        df["risk_score"],
+        bins=[-1, 33, 66, 100],
+        labels=["Low", "Medium", "High"]
+    )
+
+# Create burnout_label if missing
+if "burnout_label" not in df.columns and "risk_score" in df.columns:
+    df["burnout_label"] = (df["risk_score"] > 60).astype(int)
+
+# Create dropout_probability if missing
+if "dropout_probability" not in df.columns and "risk_score" in df.columns:
+    df["dropout_probability"] = df["risk_score"] / 100
 
 # =========================
 # Title
@@ -50,7 +68,6 @@ st.markdown("---")
 # =========================
 col5, col6 = st.columns(2)
 
-# Pie Chart
 with col5:
     st.subheader("Risk Distribution")
     fig1, ax1 = plt.subplots()
@@ -60,7 +77,6 @@ with col5:
     ax1.set_ylabel("")
     st.pyplot(fig1)
 
-# Dropout Histogram
 with col6:
     st.subheader("Dropout Probability Distribution")
     fig2, ax2 = plt.subplots()
@@ -76,9 +92,8 @@ st.markdown("---")
 # =========================
 col7, col8 = st.columns(2)
 
-# Feature Importance (Average Risk by Feature)
 with col7:
-    st.subheader("Feature Impact on Risk Score")
+    st.subheader("Feature Impact Overview")
 
     features = [
         "engagement_score",
@@ -87,26 +102,32 @@ with col7:
         "irregular_behavior_flag"
     ]
 
-    feature_means = df[features].mean()
+    existing_features = [f for f in features if f in df.columns]
 
-    fig3, ax3 = plt.subplots()
-    feature_means.plot(kind="bar", ax=ax3)
-    ax3.set_ylabel("Average Value")
-    st.pyplot(fig3)
+    if existing_features:
+        feature_means = df[existing_features].mean()
+        fig3, ax3 = plt.subplots()
+        feature_means.plot(kind="bar", ax=ax3)
+        ax3.set_ylabel("Average Value")
+        st.pyplot(fig3)
+    else:
+        st.warning("Feature columns not found in dataset.")
 
-# Scatter Plot
 with col8:
     st.subheader("Attendance vs Risk Score")
 
-    fig4, ax4 = plt.subplots()
-    scatter = ax4.scatter(
-        df["attendance_percentage"],
-        df["risk_score"],
-        alpha=0.5
-    )
-    ax4.set_xlabel("Attendance Percentage")
-    ax4.set_ylabel("Risk Score")
-    st.pyplot(fig4)
+    if "attendance_percentage" in df.columns:
+        fig4, ax4 = plt.subplots()
+        ax4.scatter(
+            df["attendance_percentage"],
+            df["risk_score"],
+            alpha=0.5
+        )
+        ax4.set_xlabel("Attendance Percentage")
+        ax4.set_ylabel("Risk Score")
+        st.pyplot(fig4)
+    else:
+        st.warning("Attendance column not found.")
 
 st.markdown("---")
 
@@ -115,14 +136,25 @@ st.markdown("---")
 # =========================
 st.subheader("LMS Logins vs Burnout Heatmap")
 
-heatmap_data = pd.crosstab(
-    pd.qcut(df["lms_logins_per_week"], 5),
-    df["burnout_label"]
-)
+if "lms_logins_per_week" in df.columns:
+    heatmap_data = pd.crosstab(
+        pd.qcut(df["lms_logins_per_week"], 5, duplicates="drop"),
+        df["burnout_label"]
+    )
 
-fig5, ax5 = plt.subplots()
-sns.heatmap(heatmap_data, annot=True, fmt="d", ax=ax5)
-st.pyplot(fig5)
+    fig5, ax5 = plt.subplots()
+    im = ax5.imshow(heatmap_data, aspect="auto")
+
+    ax5.set_xticks(range(len(heatmap_data.columns)))
+    ax5.set_xticklabels(heatmap_data.columns)
+
+    ax5.set_yticks(range(len(heatmap_data.index)))
+    ax5.set_yticklabels(heatmap_data.index)
+
+    plt.colorbar(im)
+    st.pyplot(fig5)
+else:
+    st.warning("LMS login column not found.")
 
 st.markdown("---")
 
