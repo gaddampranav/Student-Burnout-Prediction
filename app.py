@@ -10,7 +10,7 @@ st.set_page_config(page_title="Student Burnout Prediction Dashboard", layout="wi
 # =========================
 @st.cache_data
 def load_data():
-    return pd.read_csv("data/synthetic_student_data.csv")
+    return pd.read_csv("data/engineered_student_data.csv")
 
 df = load_data()
 
